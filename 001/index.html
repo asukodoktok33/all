@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Shortlink Generator</title>
+<style>
+body{font-family:sans-serif;background:#fbe9f0;padding:2rem;display:flex;justify-content:center}
+.card{background:#fff;padding:24px;border-radius:12px;box-shadow:0 6px 16px rgba(0,0,0,0.08);max-width:680px;width:100%}
+h1{text-align:center;color:#e91e63}
+label{display:block;margin-top:10px;font-weight:bold}
+input,select{width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;margin-top:4px}
+button{background:#e91e63;color:#fff;padding:10px 16px;border:0;border-radius:8px;margin-top:14px;cursor:pointer}
+button:hover{background:#c2185b}
+.results{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:18px}
+.box{padding:12px;border-radius:10px;background:#faf7fa;border:1px solid #f0e6ee}
+.radio-group{margin-top:8px;display:flex;gap:12px}
+.radio-group label{font-weight:normal}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>Shortlink Generator</h1>
+  <form id="form">
+    <label>Judul</label><input id="title" required>
+    <label>Deskripsi</label><input id="desc" required>
+    <label>URL Gambar</label><input id="imageUrl" type="url" required>
+    <label>URL Redirect</label><input id="redirectUrl" type="url" required>
+    <label>Pilih Domain</label><select id="domain"></select>
+
+    <label>Pilih Format Tautan</label>
+    <div class="radio-group">
+      <label><input type="radio" name="format" value="asli" checked> Asli</label>
+      <label><input type="radio" name="format" value="p_fb"> p.facebook</label>
+      <label><input type="radio" name="format" value="l_fb"> l.facebook</label>
+    </div>
+
+    <button type="submit">Buat Link</button>
+  </form>
+
+  <div id="result" class="results" style="display:none">
+    <div class="box">
+      <h4>OG Short</h4>
+      <input id="ogShort" readonly>
+      <button type="button" onclick="copy('ogShort')">Salin</button>
+    </div>
+    <div class="box">
+      <h4>Alias Short</h4>
+      <input id="aliasShort" readonly>
+      <button type="button" onclick="copy('aliasShort')">Salin</button>
+    </div>
+  </div>
+</div>
+<script>
+// alamat API Worker
+const API_BASE = "https://api.gpox.xyz"; // ganti sesuai domain Worker Anda
+
+// fallback domain list default
+const defaultDomains = ["gpox.xyz","googlw.pro","oldriw.com"];
+
+function populateDomains(domains){
+  const sel=document.getElementById('domain');
+  sel.innerHTML="";
+  domains.forEach(d=>{
+    let o=document.createElement('option');
+    o.value=d; o.textContent=d;
+    sel.appendChild(o);
+  });
+}
+
+async function loadDomains(){
+  // isi default dulu biar tidak kosong
+  populateDomains(defaultDomains);
+
+  // lalu coba ambil dari API
+  try{
+    const res=await fetch(API_BASE+"/domains");
+    if(!res.ok) throw new Error("status "+res.status);
+    const j=await res.json();
+    if(j.domains && j.domains.length>0){
+      populateDomains(j.domains);
+    }
+  }catch(e){
+    console.warn("Pakai default domains:", e);
+  }
+}
+document.addEventListener('DOMContentLoaded',loadDomains);
+
+function wrapLink(base,format){
+  if(format==='p_fb') return `https://p.facebook.com/l.php?u=${encodeURIComponent(base)}&s=1`;
+  if(format==='l_fb') return `https://l.facebook.com/l.php?u=${encodeURIComponent(base)}&h=xyz&s=1`;
+  return base;
+}
+
+document.getElementById('form').onsubmit=async e=>{
+  e.preventDefault();
+  const payload={
+    title:title.value,
+    desc:desc.value,
+    imageUrl:imageUrl.value,
+    redirect:redirectUrl.value,
+    domain:domain.value
+  };
+  const format=document.querySelector('input[name="format"]:checked').value;
+  try{
+    const res=await fetch(API_BASE+"/create",{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload)
+    });
+    const data=await res.json();
+    if(res.ok){
+      ogShort.value=wrapLink(data.links.og_short,format);
+      aliasShort.value=wrapLink(data.links.alias_short,format);
+      document.getElementById('result').style.display='grid';
+    }else{
+      alert("Error: "+data.error);
+    }
+  }catch(err){
+    alert("Gagal memanggil API: "+err.message);
+  }
+};
+
+function copy(id){
+  let el=document.getElementById(id);
+  el.select();
+  document.execCommand('copy');
+}
+</script>
+</body>
+</html>
